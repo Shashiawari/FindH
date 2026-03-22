@@ -1,5 +1,6 @@
 import './globals.css';
 import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 import { AppProvider } from '../context/AppContext';
 
 export const metadata = {
@@ -16,6 +17,7 @@ export default function RootLayout({ children }) {
           <main className="page-wrapper animate-fade-in">
             {children}
           </main>
+          <Footer />
         </AppProvider>
       </body>
     </html>

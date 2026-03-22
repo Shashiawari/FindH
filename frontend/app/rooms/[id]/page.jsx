@@ -1,49 +1,64 @@
 'use client';
 
+import API_URL from '../../../lib/api.js';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAppContext } from '../../../context/AppContext';
 
+/* ═══════ SVG Icons ═══════ */
+const MapPinIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+  </svg>
+);
+const ImageIcon = () => (
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+  </svg>
+);
+const ParkingIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/>
+  </svg>
+);
+const VerifiedIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>
+  </svg>
+);
+const ShieldIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+  </svg>
+);
+
 export default function RoomDetails() {
   const { id } = useParams();
   const router = useRouter();
-  const { token, user } = useAppContext();
+  const { token, latestVerificationEvent, user } = useAppContext();
 
   const [room, setRoom] = useState(null);
-  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentImage, setCurrentImage] = useState(0);
-  const [myBooking, setMyBooking] = useState(null);
-  const [isOwner, setIsOwner] = useState(false);
+  const [verificationRequest, setVerificationRequest] = useState(null);
+
+  const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.replace(/^room-images\//, '').replace(/^property-images\//, '');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://segrvvwuryibbfvnrwvx.supabase.co';
+    return `${supabaseUrl}/storage/v1/object/public/room-images/${cleanPath}`;
+  };
 
   useEffect(() => {
     if (!id) return;
     const fetchData = async () => {
       try {
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-        const [roomRes, agentsRes] = await Promise.all([
-          fetch(`http://localhost:5000/api/tenants/${id}`),
-          fetch(`http://localhost:5000/api/agents/public/nearby/${id}`, { headers })
-        ]);
-
+        const roomRes = await fetch(`${API_URL}/api/tenants/${id}`);
         const roomData = roomRes.ok ? await roomRes.json() : null;
-        const agentsData = agentsRes.ok ? await agentsRes.json() : [];
-
         setRoom(roomData);
-        setAgents(Array.isArray(agentsData) ? agentsData : []);
-
-        // Check ownership — the listing tenant_id is exposed in the response
-        if (token && roomData) {
-          // tenantController returns tenant_id (the user who posted)
-          const listingOwnerId = roomData.tenantId;
-          setIsOwner(listingOwnerId && user?._id && listingOwnerId === user._id);
-
-          // Check if current user already booked this room
-          const bkRes = await fetch(`http://localhost:5000/api/bookings/my-booking/${id}`, { headers });
-          if (bkRes.ok) setMyBooking(await bkRes.json());
-        }
       } catch (err) {
         console.error('RoomDetails error:', err);
       } finally {
@@ -52,6 +67,56 @@ export default function RoomDetails() {
     };
     fetchData();
   }, [id, token]);
+
+  useEffect(() => {
+    if (!id || !token) {
+      setVerificationRequest(null);
+      return;
+    }
+
+    const fetchVerificationRequest = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/verification/my-requests?listingId=${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const request = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        setVerificationRequest(request);
+      } catch (error) {
+        console.error('Failed to load verification request', error);
+      }
+    };
+
+    fetchVerificationRequest();
+  }, [id, token]);
+
+  useEffect(() => {
+    const payload = latestVerificationEvent?.payload;
+    if (!payload) return;
+
+    setVerificationRequest(prev => {
+      if (!prev) return prev;
+      if (payload.listingId && payload.listingId !== id) return prev;
+      if (payload.bookingId && prev.bookingId && payload.bookingId !== prev.bookingId) return prev;
+
+      const nextStatus = payload.verificationStatus || prev.verificationStatus;
+      const nextAssignedAgent = payload.assignedAgent || prev.assignedAgent;
+
+      const sameStatus = nextStatus === prev.verificationStatus;
+      const sameAssignedAgent = JSON.stringify(nextAssignedAgent || null) === JSON.stringify(prev.assignedAgent || null);
+
+      if (sameStatus && sameAssignedAgent) return prev;
+
+      return {
+        ...prev,
+        verificationStatus: nextStatus,
+        assignedAgent: nextAssignedAgent
+      };
+    });
+  }, [latestVerificationEvent, id]);
 
   if (loading) return (
     <div className="container" style={{ textAlign: 'center', paddingTop: '80px' }}>
@@ -62,199 +127,187 @@ export default function RoomDetails() {
   if (!room) return (
     <div className="container" style={{ textAlign: 'center', paddingTop: '80px' }}>
       <h2>Room not found</h2>
-      <Link href="/rooms" className="button" style={{ marginTop: '16px' }}>← All Rooms</Link>
+      <Link href="/rooms" className="button" style={{ marginTop: '16px' }}>Back to Listings</Link>
     </div>
   );
 
-  const hasPaidBooking = myBooking?.payment_status === 'Paid';
   const hasImages = room.images?.length > 0;
+  const trackerSteps = ['pending', 'accepted', 'in_progress', 'verified'];
+  const currentTrackerStatus = verificationRequest?.verificationStatus || null;
+  const activeTrackerIndex = trackerSteps.indexOf(currentTrackerStatus);
+  const hasActiveVerification = ['pending', 'accepted', 'in_progress'].includes(currentTrackerStatus);
+  const currentUserId = user?.id || user?._id || null;
+  const listingOwnerId = room?.tenantId || room?.tenant_id || null;
+  const isOwner = Boolean(currentUserId && listingOwnerId && listingOwnerId === currentUserId);
 
   return (
     <div className="container" style={{ paddingBottom: '80px' }}>
       <Link href="/rooms" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '28px', color: 'var(--primary)', fontWeight: '500' }}>
-        ← Back to Listings
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Back to Listings
       </Link>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '40px', alignItems: 'start' }}>
+      {/* ══════ MAIN CONTENT ══════ */}
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
-        {/* ══════ LEFT ══════ */}
-        <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>{room.title}</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '24px' }}>
-            📍 {room.address1}, {room.city}, {room.country}
-          </p>
+        {/* TITLE */}
+        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: '2rem', margin: 0 }}>{room.title}</h1>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <MapPinIcon /> {room.address1}, {room.city}, {room.country}
+        </p>
 
-          {/* IMAGE CAROUSEL */}
-          <div style={{ position: 'relative', width: '100%', height: '320px', marginBottom: '28px', overflow: 'hidden', borderRadius: '16px', background: '#1e293b' }}>
-            {hasImages ? (
-              <img
-                key={room.images[currentImage]}
-                src={room.images[currentImage]}
-                alt="Room"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '8px' }}>
-                <span style={{ fontSize: '2.5rem' }}>🏠</span>
-                <span>No images uploaded</span>
-              </div>
-            )}
-            {hasImages && currentImage > 0 && (
-              <button onClick={() => setCurrentImage(i => i - 1)} style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: '22px', padding: '8px 14px', borderRadius: '50%', cursor: 'pointer' }}>‹</button>
-            )}
-            {hasImages && currentImage < room.images.length - 1 && (
-              <button onClick={() => setCurrentImage(i => i + 1)} style={{ position: 'absolute', top: '50%', right: '12px', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: '22px', padding: '8px 14px', borderRadius: '50%', cursor: 'pointer' }}>›</button>
-            )}
-            {hasImages && (
-              <div style={{ position: 'absolute', bottom: '12px', right: '14px', background: 'rgba(0,0,0,0.5)', color: '#fff', padding: '3px 10px', borderRadius: '20px', fontSize: '0.78rem' }}>
-                {currentImage + 1} / {room.images.length}
-              </div>
-            )}
-          </div>
-
-          {/* FINANCIALS */}
-          <div className="glass-card" style={{ marginBottom: '24px' }}>
-            <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>Financials & Details</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
-              <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Cold Rent</p>
-                <p style={{ fontSize: '1.4rem', fontWeight: '800' }}>${room.coldRent}<span style={{ fontSize: '0.85rem', fontWeight: '400', color: 'var(--text-muted)' }}>/mo</span></p>
-              </div>
-              <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Warm Rent</p>
-                <p style={{ fontSize: '1.4rem', fontWeight: '800', color: '#10b981' }}>${room.warmRent}<span style={{ fontSize: '0.85rem', fontWeight: '400', color: 'var(--text-muted)' }}>/mo</span></p>
-              </div>
-              <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Sharing</p>
-                <p style={{ fontWeight: '600' }}>{room.personsSharing} Person(s)</p>
-              </div>
-              <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Listed</p>
-                <p style={{ fontWeight: '600' }}>{new Date(room.createdAt).toLocaleDateString()}</p>
-              </div>
-            </div>
-            {room.rules && (
-              <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '6px' }}>Rules & Amenities</p>
-                <p style={{ fontSize: '0.95rem' }}>{room.rules}</p>
-              </div>
-            )}
-            {room.parking && <div className="badge badge-accent" style={{ marginTop: '12px' }}>🅿️ Parking Available</div>}
-          </div>
-
-          {/* VERIFICATION SECTION — locked behind payment */}
-          <div className="glass-card">
-            <h3 style={{ marginBottom: '12px' }}>🔒 Property Verification Documents</h3>
-            {!token ? (
-              <div style={{ padding: '24px', textAlign: 'center', borderRadius: '12px', background: 'rgba(124,58,237,0.06)', border: '1px dashed var(--primary)' }}>
-                <p style={{ fontWeight: '600', marginBottom: '8px' }}>Login to access property verification</p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>Book a verified agent to unlock verified ownership documents.</p>
-                <Link href="/login" className="button" style={{ padding: '10px 24px' }}>Login to Continue</Link>
-              </div>
-            ) : isOwner ? (
-              <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6' }}>
-                <p style={{ fontWeight: '600' }}>This is your listed property.</p>
-                <p style={{ fontSize: '0.9rem', marginTop: '4px', color: 'var(--text-muted)' }}>Verification documents will be visible here once an agent you've been booked by completes verification and admin approves.</p>
-              </div>
-            ) : !hasPaidBooking ? (
-              <div style={{ padding: '24px', textAlign: 'center', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px dashed #f59e0b' }}>
-                <p style={{ fontSize: '1.8rem', marginBottom: '6px' }}>🔐</p>
-                <p style={{ fontWeight: '600', marginBottom: '6px' }}>Exclusive to booked users</p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Book a verified agent to unlock ownership proof, rental agreement, electricity bill & more.</p>
-              </div>
-            ) : (
-              <div>
-                <div style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', borderRadius: '10px', color: '#10b981', fontWeight: '600', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  ✔ You've booked verification for this property
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                  Documents appear here once the agent uploads them and admin approves. Track progress in <Link href="/profile?tab=requests" style={{ color: 'var(--primary)' }}>My Profile</Link>.
-                </p>
-              </div>
-            )}
-          </div>
+        {/* PROPERTY ID — Responsive */}
+        <div style={{
+          background: 'var(--surface-2)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)', padding: '10px 16px', marginBottom: '24px',
+          display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
+          overflow: 'hidden', wordBreak: 'break-all'
+        }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600', flexShrink: 0 }}>Property ID:</span>
+          <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{room._id}</span>
         </div>
 
-        {/* ══════ RIGHT: AGENTS PANEL ══════ */}
-        <div style={{ position: 'sticky', top: '90px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-            <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Nearby Agents</h2>
-            <span style={{
-              background: agents.length > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(100,100,100,0.1)',
-              color: agents.length > 0 ? '#10b981' : 'var(--text-muted)',
-              padding: '3px 12px', borderRadius: '20px', fontWeight: '700', fontSize: '0.85rem'
-            }}>
-              {agents.length}
-            </span>
-          </div>
-
-          {isOwner && (
-            <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#3b82f6', fontSize: '0.88rem', marginBottom: '16px', fontWeight: '500' }}>
-              You cannot book an agent for your own listing.
-            </div>
-          )}
-
-          {hasPaidBooking && !isOwner && (
-            <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10b981', color: '#10b981', fontSize: '0.88rem', marginBottom: '16px', fontWeight: '600' }}>
-              ✔ Agent booked for this property.
-            </div>
-          )}
-
-          {agents.length === 0 ? (
-            <div className="glass-card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '1.5rem', marginBottom: '6px' }}>🔍</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No verified agents found in {room.city}.</p>
-            </div>
+        {/* IMAGE CAROUSEL */}
+        <div style={{ position: 'relative', width: '100%', height: '380px', marginBottom: '28px', overflow: 'hidden', borderRadius: '16px', background: '#1e293b' }}>
+          {hasImages ? (
+            <img
+              key={room.images[currentImage]}
+              src={getImageUrl(room.images[currentImage])}
+              alt="Room"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
           ) : (
-            <div>
-              {agents.map(agent => (
-                /* Click on agent card → agent detail page with listingId param */
-                <Link
-                  key={agent._id}
-                  href={`/agents/${agent._id}?listingId=${id}`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <div className="glass-card" style={{ padding: '18px', marginBottom: '12px', cursor: 'pointer', transition: 'transform 0.15s', display: 'flex', gap: '14px', alignItems: 'center' }}
-                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-                  >
-                    {/* Avatar */}
-                    <div style={{
-                      width: '48px', height: '48px', borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0
-                    }}>
-                      {agent.name?.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <h4 style={{ margin: '0 0 3px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.95rem' }}>
-                        {agent.name}
-                        <span style={{ color: '#3b82f6', fontSize: '0.9rem' }}>☑</span>
-                      </h4>
-                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                        {agent.agentType} · {agent.city}
-                      </p>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>›</span>
-                  </div>
-                </Link>
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '8px' }}>
+              <ImageIcon />
+              <span>No images uploaded</span>
             </div>
           )}
-
-          {/* How it works */}
-          <div style={{ marginTop: '16px', padding: '14px 16px', background: 'rgba(124,58,237,0.05)', borderRadius: '10px', fontSize: '0.82rem', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-            <strong style={{ color: 'var(--text)', display: 'block', marginBottom: '8px' }}>How it works</strong>
-            <ol style={{ margin: 0, paddingLeft: '18px', lineHeight: '1.9' }}>
-              <li>Click agent to see details & reviews</li>
-              <li>Book the agent from their profile</li>
-              <li>Agent visits & uploads property docs</li>
-              <li>Admin approves → you get verified docs</li>
-            </ol>
-          </div>
+          {hasImages && currentImage > 0 && (
+            <button onClick={() => setCurrentImage(i => i - 1)} style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: '22px', padding: '8px 14px', borderRadius: '50%', cursor: 'pointer' }}>&#8249;</button>
+          )}
+          {hasImages && currentImage < room.images.length - 1 && (
+            <button onClick={() => setCurrentImage(i => i + 1)} style={{ position: 'absolute', top: '50%', right: '12px', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', fontSize: '22px', padding: '8px 14px', borderRadius: '50%', cursor: 'pointer' }}>&#8250;</button>
+          )}
+          {hasImages && (
+            <div style={{ position: 'absolute', bottom: '12px', right: '14px', background: 'rgba(0,0,0,0.5)', color: '#fff', padding: '3px 10px', borderRadius: '20px', fontSize: '0.78rem' }}>
+              {currentImage + 1} / {room.images.length}
+            </div>
+          )}
         </div>
+
+        {/* FINANCIALS */}
+        <div className="glass-card" style={{ marginBottom: '24px' }}>
+          <h3 style={{ marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>Financials & Details</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Cold Rent</p>
+              <p style={{ fontSize: '1.4rem', fontWeight: '800' }}>${room.coldRent}<span style={{ fontSize: '0.85rem', fontWeight: '400', color: 'var(--text-muted)' }}>/mo</span></p>
+            </div>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Warm Rent</p>
+              <p style={{ fontSize: '1.4rem', fontWeight: '800', color: '#10b981' }}>${room.warmRent}<span style={{ fontSize: '0.85rem', fontWeight: '400', color: 'var(--text-muted)' }}>/mo</span></p>
+            </div>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Sharing</p>
+              <p style={{ fontWeight: '600' }}>{room.personsSharing} Person(s)</p>
+            </div>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '3px' }}>Listed</p>
+              <p style={{ fontWeight: '600' }}>{new Date(room.createdAt).toLocaleDateString()}</p>
+            </div>
+          </div>
+          {room.rules && (
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '6px' }}>Rules & Amenities</p>
+              <p style={{ fontSize: '0.95rem' }}>{room.rules}</p>
+            </div>
+          )}
+          {room.parking && (
+            <div className="badge badge-accent" style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <ParkingIcon /> Parking Available
+            </div>
+          )}
+        </div>
+
+        {/* VERIFICATION STATUS TRACKER */}
+        {verificationRequest && (
+          <div className="glass-card" style={{ marginBottom: '24px' }}>
+            <h3 style={{ marginBottom: '10px', fontSize: '1.05rem' }}>Your Verification Request</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '16px' }}>
+              Booking ID: {verificationRequest.bookingId}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: '8px', marginBottom: '14px' }}>
+              {trackerSteps.map((step, index) => {
+                const done = activeTrackerIndex >= 0 && index <= activeTrackerIndex;
+                const label = step === 'in_progress' ? 'In Progress' : step.charAt(0).toUpperCase() + step.slice(1);
+                return (
+                  <div key={step} style={{
+                    padding: '10px 8px',
+                    textAlign: 'center',
+                    borderRadius: '8px',
+                    fontSize: '0.74rem',
+                    fontWeight: '700',
+                    background: done ? 'rgba(16,185,129,0.16)' : 'var(--surface-2)',
+                    color: done ? '#10b981' : 'var(--text-muted)',
+                    border: done ? '1px solid rgba(16,185,129,0.4)' : '1px solid var(--border)'
+                  }}>
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Current status: <strong style={{ color: 'var(--text)' }}>{(currentTrackerStatus || 'pending').replace('_', ' ').toUpperCase()}</strong>
+            </div>
+
+            {verificationRequest.assignedAgent && (
+              <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#10b981' }}>
+                Assigned agent: <strong>{verificationRequest.assignedAgent.name || verificationRequest.assignedAgent.email}</strong>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* REQUEST VERIFICATION BUTTON */}
+        <div className="glass-card" style={{
+          textAlign: 'center', padding: '32px',
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.04), rgba(139,92,246,0.04))',
+          border: '1.5px solid rgba(99,102,241,0.15)'
+        }}>
+          <div style={{ marginBottom: '12px' }}>
+            <ShieldIcon />
+          </div>
+          <h3 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Request Property Verification</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px', maxWidth: '420px', margin: '0 auto 20px', lineHeight: '1.5' }}>
+            Request a physical verification by a local agent.<br/>
+            The agent will visit the property and upload verification documents.<br/>
+            Once approved, you will receive the verification report privately.
+          </p>
+          <button
+            className="button"
+            style={{ padding: '13px 32px', fontSize: '0.95rem' }}
+            onClick={() => {
+              if (!token) {
+                alert('Please log in to request verification');
+                router.push('/login');
+                return;
+              }
+              if (hasActiveVerification || isOwner) {
+                return;
+              }
+              router.push(`/verify-payment?propertyId=${room._id}&propertyName=${encodeURIComponent(room.title)}&ownerId=${listingOwnerId}`);
+            }}
+            disabled={hasActiveVerification || isOwner}
+          >
+            <ShieldIcon /> {isOwner ? 'Cannot Verify Own Listing' : hasActiveVerification ? 'Verification Request Active' : 'Request Verification'}
+          </button>
+        </div>
+
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 'use client';
 
+import API_URL from '../../../../lib/api.js';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import React from 'react';
@@ -35,7 +37,7 @@ export default function UploadPropertyDocs({ params }) {
     }
 
     try {
-      const res = await fetch(`http://localhost:5000/api/profile/upload-docs/${bookingId}`, {
+      const res = await fetch(`${API_URL}/api/profile/upload-docs/${bookingId}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -52,10 +54,10 @@ export default function UploadPropertyDocs({ params }) {
 
   if (success) return (
     <div className="container" style={{ textAlign: 'center', paddingTop: '80px' }}>
-      <div style={{ fontSize: '3rem', marginBottom: '16px' }}>✅</div>
+      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center' }}><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
       <h2>Documents Uploaded!</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Admin will review your submission and verify the property.</p>
-      <button onClick={() => router.push('/profile?tab=requests')} className="button">← Back to Requests</button>
+      <button onClick={() => router.push('/agent-dashboard')} className="button">← Back to Agent Dashboard</button>
     </div>
   );
 
@@ -101,7 +103,7 @@ export default function UploadPropertyDocs({ params }) {
           </div>
 
           <button type="submit" className="button" disabled={loading} style={{ width: '100%', marginTop: '16px', padding: '16px' }}>
-            {loading ? 'Uploading...' : '📤 Submit for Admin Review'}
+            {loading ? 'Uploading...' : 'Submit for Admin Review'}
           </button>
         </form>
       </div>

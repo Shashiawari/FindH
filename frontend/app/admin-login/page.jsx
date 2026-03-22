@@ -1,5 +1,7 @@
 'use client';
 
+import API_URL from '../../lib/api.js';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '../../context/AppContext';
@@ -17,7 +19,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/admin/login', {
+      const res = await fetch(`${API_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminId, password }),

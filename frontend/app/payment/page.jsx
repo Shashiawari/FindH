@@ -48,7 +48,7 @@ export default function PaymentFlow() {
             </>
           ) : (
              <>
-               <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
+               <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center' }}><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
                <h2>Payment Successful</h2>
                <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
                  Your verification request is now pending admin review. You will be notified once complete.

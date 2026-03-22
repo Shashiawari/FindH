@@ -1,5 +1,7 @@
 'use client';
 
+import API_URL from '../lib/api.js';
+
 import { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 
@@ -43,7 +45,7 @@ export function useSignedUrl(dbPath, adminTokenOverride = null) {
         const fetchSignedUrl = async () => {
             try {
                 const encodedPath = encodeURIComponent(dbPath);
-                const res = await fetch(`http://localhost:5000/api/files/${encodedPath}`, {
+                const res = await fetch(`${API_URL}/api/files/${encodedPath}`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 });
 

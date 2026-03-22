@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import API_URL from '../../../lib/api.js';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppContext } from '../../../context/AppContext';
 import { ProtectedImage } from '../../../hooks/useSignedUrl'; // <-- ADDED
 
-export default function AgentDetails({ params }) {
+function AgentDetailsInner({ params }) {
   const unwrappedParams = React.use(params);
   const { agentId } = unwrappedParams;
   const searchParams = useSearchParams();
@@ -28,7 +29,7 @@ export default function AgentDetails({ params }) {
 
   const fetchAgent = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/agents/${agentId}`);
+      const res = await fetch(`${API_URL}/api/agents/${agentId}`);
       if (res.ok) setAgent(await res.json());
     } catch (err) {
       console.error(err);
@@ -39,7 +40,7 @@ export default function AgentDetails({ params }) {
 
   const fetchReviews = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/reviews/${agentId}`);
+      const res = await fetch(`${API_URL}/api/reviews/${agentId}`);
       if (res.ok) {
         const data = await res.json();
         setReviews(data.reviews);
@@ -55,7 +56,7 @@ export default function AgentDetails({ params }) {
     setSubmitting(true);
     setReviewError('');
     try {
-      const res = await fetch('http://localhost:5000/api/reviews', {
+      const res = await fetch(`${API_URL}/api/reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,7 +102,7 @@ export default function AgentDetails({ params }) {
             fontWeight: '600',
             fontSize: '0.9rem'
           }}>
-            ✔ Identity Confirmed
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '4px' }}><polyline points="20 6 9 17 4 12"/></svg> Identity Confirmed
           </div>
         )}
 
@@ -111,13 +112,13 @@ export default function AgentDetails({ params }) {
                // Render protected internal file path 
               <ProtectedImage path={agent.selfie} alt={agent.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>👤</div>
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             )}
           </div>
           <div>
             <h1 style={{ margin: '0 0 8px 0', fontSize: '2rem' }}>{agent.name}</h1>
             <span className={agent.agentType === 'Professional' ? 'badge badge-primary' : 'badge badge-accent'} style={{ marginRight: '8px' }}>{agent.agentType}</span>
-            <p style={{ color: 'var(--text-muted)', margin: '8px 0 0 0' }}>📍 {agent.city}, {agent.country}</p>
+            <p style={{ color: 'var(--text-muted)', margin: '8px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> {agent.city}, {agent.country}</p>
           </div>
         </div>
       </div>
@@ -141,11 +142,9 @@ export default function AgentDetails({ params }) {
       {token && (
         <div className="glass-card" style={{ marginBottom: '24px' }}>
           <h3 style={{ marginBottom: '12px' }}>Contact</h3>
-          <p>📧 {agent.email}</p>
-          <p>📞 {agent.phone}</p>
-          <button onClick={() => router.push(`/book-agent/${agentId}${listingId ? `?listingId=${listingId}` : ''}`)} className="button" style={{ width: '100%', marginTop: '16px' }}>
-            Book This Agent
-          </button>
+          <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '6px' }}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>{agent.email}</p>
+          <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: '6px' }}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>{agent.phone}</p>
+
         </div>
       )}
 
@@ -205,5 +204,13 @@ export default function AgentDetails({ params }) {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AgentDetails({ params }) {
+  return (
+    <Suspense fallback={<div className="container" style={{ textAlign: 'center', paddingTop: '60px' }}><div className="badge badge-primary">Loading...</div></div>}>
+      <AgentDetailsInner params={params} />
+    </Suspense>
   );
 }

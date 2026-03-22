@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useAppContext } from '../../context/AppContext';
 import { motion } from 'framer-motion';
+import AnimatedBackground from '../../components/AnimatedBackground';
 
 const cardVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -32,8 +33,17 @@ function SkeletonCard() {
 export default function RoomsList() {
   const { rooms, loadingRooms: loading } = useAppContext();
 
+  const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.replace(/^room-images\//, '').replace(/^property-images\//, '');
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://segrvvwuryibbfvnrwvx.supabase.co';
+    return `${supabaseUrl}/storage/v1/object/public/room-images/${cleanPath}`;
+  };
+
   return (
-    <div className="container" style={{ paddingBottom: '60px' }}>
+    <div className="container" style={{ paddingBottom: '60px', position: 'relative', zIndex: 1 }}>
+      <AnimatedBackground />
       {/* HEADER */}
       <motion.div
         initial={{ opacity: 0, y: -16 }}
@@ -103,7 +113,7 @@ export default function RoomsList() {
                   <div style={{ height: '210px', position: 'relative', overflow: 'hidden', background: '#0f1a2b' }}>
                     {room.images?.[0] ? (
                       <img
-                        src={room.images[0]}
+                        src={getImageUrl(room.images[0])}
                         alt={room.title}
                         style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease', display: 'block' }}
                         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
@@ -112,7 +122,7 @@ export default function RoomsList() {
                       />
                     ) : (
                       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-faint)' }}>
-                        <span style={{ fontSize: '2rem' }}>🏠</span>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
                         <span style={{ fontSize: '0.8rem' }}>No image</span>
                       </div>
                     )}
@@ -128,7 +138,8 @@ export default function RoomsList() {
                       {room.title}
                     </h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.83rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      📍 {room.city}, {room.country}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      {room.city}, {room.country}
                     </p>
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
                       <div>

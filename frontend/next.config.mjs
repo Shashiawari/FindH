@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactCompiler: true,
+  reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
   images: {
     remotePatterns: [
       {
@@ -14,3 +17,4 @@ const nextConfig = {
 };
 
 export default nextConfig;
+

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import API_URL from '../../lib/api.js';
+
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '../../context/AppContext';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -8,7 +10,7 @@ import ProtectedRoute from '../../components/ProtectedRoute';
 export default function UploadRoom() {
 
   const router = useRouter();
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -30,6 +32,16 @@ export default function UploadRoom() {
   });
 
   const [images, setImages] = useState([]);
+
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || '',
+        contactNumber: user.phone || ''
+      }));
+    }
+  }, [user]);
 
   // ================= INPUT CHANGE =================
 
@@ -70,7 +82,7 @@ export default function UploadRoom() {
 
     try {
 
-      const res = await fetch('http://localhost:5000/api/tenants', {
+      const res = await fetch(`${API_URL}/api/tenants`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
@@ -111,13 +123,13 @@ export default function UploadRoom() {
             </div>
 
             <div className="form-group">
-              <label>Contact Email</label>
-              <input name="email" type="email" required onChange={handleInputChange} placeholder="you@example.com" />
+              <label>Contact Email <span style={{fontSize:'0.75rem', color:'var(--text-muted)'}}>(Locked to profile)</span></label>
+              <input name="email" type="email" value={formData.email} readOnly disabled required style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', cursor: 'not-allowed', borderColor: 'transparent' }} />
             </div>
 
             <div className="form-group">
-              <label>Contact Number</label>
-              <input name="contactNumber" required onChange={handleInputChange} placeholder="+1 234 567 8900" />
+              <label>Contact Number <span style={{fontSize:'0.75rem', color:'var(--text-muted)'}}>(Locked to profile)</span></label>
+              <input name="contactNumber" type="tel" value={formData.contactNumber} readOnly disabled required style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', cursor: 'not-allowed', borderColor: 'transparent' }} />
             </div>
 
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>

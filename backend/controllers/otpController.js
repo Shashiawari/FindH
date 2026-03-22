@@ -86,7 +86,7 @@ exports.sendOTP = async (req, res) => {
 // ================= VERIFY OTP =================
 
 exports.verifyOTP = async (req, res) => {
-    const { email, password, otp, address1, city, state, country } = req.body;
+    const { email, password, otp, name, phone, date_of_birth, postal_code, address1, city, state, country } = req.body;
 
     try {
         const { data: otpRecord, error } = await supabase
@@ -128,7 +128,7 @@ exports.verifyOTP = async (req, res) => {
 
         const { data: user, error: insertError } = await supabase
             .from('users')
-            .insert([{ email, password: hashedPassword, is_verified: true, user_code, address1, city, state, country }])
+            .insert([{ email, password: hashedPassword, is_verified: true, user_code, name, phone, date_of_birth: date_of_birth || null, postal_code, address1, city, state, country }])
             .select()
             .single();
 
@@ -139,7 +139,9 @@ exports.verifyOTP = async (req, res) => {
 
         res.status(201).json({
             _id: user.id,
+            name: user.name || '',
             email: user.email,
+            phone: user.phone || '',
             user_code: user.user_code,
             city: user.city,
             country: user.country,

@@ -4,12 +4,11 @@ const { protect } = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/upload');
 const {
     getProfile,
-    getAgentRequests,
     getMyRooms,
-    getEarnings,
     updateSettings,
     uploadPropertyDocs,
-    getMyVerifications
+    getMyVerifications,
+    getMyEarnings
 } = require('../controllers/profileController');
 
 const docUploads = upload.fields([
@@ -21,11 +20,11 @@ const docUploads = upload.fields([
 ]);
 
 router.get('/', protect, getProfile);
-router.get('/requests', protect, getAgentRequests);
 router.get('/rooms', protect, getMyRooms);
-router.get('/earnings', protect, getEarnings);
 router.get('/verifications', protect, getMyVerifications);
+router.get('/earnings', protect, getMyEarnings);
 router.put('/settings', protect, updateSettings);
 router.post('/upload-docs/:bookingId', protect, docUploads, uploadPropertyDocs);
 
 module.exports = router;
+

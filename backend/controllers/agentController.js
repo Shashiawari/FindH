@@ -43,11 +43,23 @@ exports.createAgent = async (req, res) => {
             return res.status(400).json({ message: 'You already have an agent profile. Check your profile for KYC status.' });
         }
 
+        // ================= FETCH USER DETAILS FROM PROFILE =================
+        const { data: userProfile, error: userErr } = await supabase
+            .from('users')
+            .select('name, email, phone, address1, city, state, country, postal_code')
+            .eq('id', userId)
+            .single();
+
+        if (userErr || !userProfile) {
+            console.error(userErr);
+            return res.status(400).json({ message: 'Could not load your profile details. Please update your profile settings first.' });
+        }
+
         const agentId = crypto.randomUUID();
 
-        // ================= GEO LOCATION =================
+        // ================= GEO LOCATION (using user profile address) =================
         const addressString = [
-            data.address1, data.address2, data.city, data.state, data.country
+            userProfile.address1, userProfile.city, userProfile.state, userProfile.country
         ].filter(Boolean).join(', ');
 
         let lat = null, lng = null;
@@ -74,16 +86,15 @@ exports.createAgent = async (req, res) => {
             .insert([{
                 id: agentId,
                 user_id: userId,
-                name: data.name,
-                email: data.email,
-                phone: data.phone,
+                name: userProfile.name || '',
+                email: userProfile.email || '',
+                phone: userProfile.phone || '',
                 agent_type: data.agentType,
-                country: data.country,
-                state: data.state,
-                city: data.city,
-                address1: data.address1,
-                address2: data.address2,
-                postal_code: data.postalCode || '00000',
+                country: userProfile.country || '',
+                state: userProfile.state || '',
+                city: userProfile.city || '',
+                address1: userProfile.address1 || '',
+                postal_code: userProfile.postal_code || '00000',
                 lat,
                 lng,
                 id_type: data.idType,

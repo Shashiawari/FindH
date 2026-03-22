@@ -1,4 +1,6 @@
 'use client';
+
+import API_URL from '../../lib/api.js';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '../../context/AppContext';
@@ -8,9 +10,9 @@ export default function BecomeAgent() {
   const router = useRouter();
   const { token } = useAppContext();
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', agentType: 'Professional', dob: '',
-    country: '', state: '', city: '', address1: '', address2: '', postalCode: '',
+    agentType: 'Professional',
     idType: 'Passport', idNumber: '', university: '', matricNumber: ''
   });
   
@@ -22,13 +24,14 @@ export default function BecomeAgent() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setMessage('');
     
     const data = new FormData();
     Object.keys(form).forEach(key => data.append(key, form[key]));
     Object.keys(files).forEach(key => data.append(key, files[key]));
 
     try {
-      const res = await fetch('http://localhost:5000/api/agents', {
+      const res = await fetch(`${API_URL}/api/agents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -36,8 +39,8 @@ export default function BecomeAgent() {
         body: data
       });
       if (res.ok) {
-        alert('✅ Application Submitted Successfully! Your documents are under review. Await Admin Verification.');
-        router.push('/');
+        setMessage('Application submitted. Your verification status is now pending admin review.');
+        router.push('/agent-dashboard');
       } else {
         const err = await res.json();
         alert(err.message || 'Registration failed');
@@ -55,63 +58,37 @@ export default function BecomeAgent() {
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div className="badge badge-accent" style={{ marginBottom: '16px' }}>Join the Network</div>
           <h2>Become an Agent</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Complete your profile to start matching with tenants.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Submit your details once. After admin approval, your agent dashboard unlocks automatically.</p>
         </div>
+
+        {message && (
+          <div className="badge badge-success" style={{ width: '100%', justifyContent: 'center', padding: '12px 16px', marginBottom: '24px' }}>
+            {message}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-2">
           {/* Common Fields */}
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <h4 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Personal Information</h4>
+            <h4 style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Agent Profile</h4>
           </div>
           
-          <div className="form-group">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
             <label>Agent Type</label>
             <select name="agentType" value={form.agentType} onChange={handleChange}>
               <option value="Professional">Professional</option>
               <option value="Student">Student</option>
             </select>
           </div>
-          
-          <div className="form-group">
-            <label>Full Name</label>
-            <input name="name" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Email Address</label>
-            <input type="email" name="email" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Phone Number</label>
-            <input name="phone" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Date of Birth</label>
-            <input type="date" name="dob" required onChange={handleChange} />
-          </div>
 
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <h4 style={{ marginTop: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>Location</h4>
-          </div>
-
-          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-            <label>Street Address</label>
-            <input name="address1" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>City</label>
-            <input name="city" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>State</label>
-            <input name="state" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Postal Code</label>
-            <input name="postalCode" required onChange={handleChange} />
-          </div>
-          <div className="form-group">
-            <label>Country</label>
-            <input name="country" required onChange={handleChange} />
+            <div style={{ padding: '14px 18px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--primary)' }}>Profile Data Auto-filled</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Your name, email, phone, date of birth, and address from your account profile will be used automatically — no need to re-enter them.</div>
+              </div>
+            </div>
           </div>
 
           <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -125,7 +102,7 @@ export default function BecomeAgent() {
                 <select name="idType" value={form.idType} onChange={handleChange}>
                   <option value="Passport">Passport</option>
                   <option value="National ID">National ID</option>
-                  <option value="Driver License">Driver's License</option>
+                  <option value="Driver License">Driver&apos;s License</option>
                 </select>
               </div>
               <div className="form-group">
@@ -133,15 +110,15 @@ export default function BecomeAgent() {
                 <input name="idNumber" required onChange={handleChange} />
               </div>
               <div className="form-group">
-                <label>ID Front Image</label>
+                <label>ID Proof Front</label>
                 <input type="file" name="idFront" required accept="image/*" onChange={handleFileChange} />
               </div>
               <div className="form-group">
-                <label>ID Back Image</label>
+                <label>ID Proof Back</label>
                 <input type="file" name="idBack" required accept="image/*" onChange={handleFileChange} />
               </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label>Selfie with ID</label>
+                <label>Selfie</label>
                 <input type="file" name="selfie" required accept="image/*" onChange={handleFileChange} />
               </div>
             </>
@@ -156,12 +133,16 @@ export default function BecomeAgent() {
                 <input name="matricNumber" required onChange={handleChange} />
               </div>
               <div className="form-group">
-                <label>Student Certificate</label>
-                <input type="file" name="studentCertificate" required accept="image/*,application/pdf" onChange={handleFileChange} />
+                <label>ID Proof</label>
+                <input type="file" name="studentIDPhoto" required accept="image/*" onChange={handleFileChange} />
               </div>
               <div className="form-group">
-                <label>Student ID Card Photo</label>
-                <input type="file" name="studentIDPhoto" required accept="image/*" onChange={handleFileChange} />
+                <label>Selfie</label>
+                <input type="file" name="selfie" required accept="image/*" onChange={handleFileChange} />
+              </div>
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Student Certificate</label>
+                <input type="file" name="studentCertificate" required accept="image/*,application/pdf" onChange={handleFileChange} />
               </div>
             </>
           )}

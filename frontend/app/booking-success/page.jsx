@@ -1,9 +1,10 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function BookingSuccess() {
+function BookingSuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
 
@@ -19,7 +20,7 @@ export default function BookingSuccess() {
         <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>
           Your payment was processed successfully. The agent will contact you shortly.
           <br /><br />
-          <span style={{ fontSize: '0.9rem' }}>Session ID: {sessionId}</span>
+          {sessionId && <span style={{ fontSize: '0.9rem' }}>Session ID: {sessionId}</span>}
         </p>
         <Link href="/" className="button" style={{ display: 'inline-block', padding: '12px 24px' }}>
           Return to Dashboard
@@ -28,3 +29,12 @@ export default function BookingSuccess() {
     </div>
   );
 }
+
+export default function BookingSuccess() {
+  return (
+    <Suspense fallback={<div className="container" style={{ textAlign: 'center', paddingTop: '80px' }}>Loading...</div>}>
+      <BookingSuccessContent />
+    </Suspense>
+  );
+}
+

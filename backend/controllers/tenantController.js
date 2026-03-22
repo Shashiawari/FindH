@@ -44,29 +44,14 @@ exports.createTenant = async (req, res) => {
         const listingId = crypto.randomUUID();
         const folderPath = `listings/${listingId}`;
 
-        let propertyImagesUrls = [];
-        let ownershipUrl = null;
-        let rentalAgreementUrl = null;
-        let electricityBillUrl = null;
-
         // ================= ROOM IMAGES =================
+        let propertyImagesUrls = [];
         if (req.files?.images) {
             propertyImagesUrls = await Promise.all(
                 req.files.images.map((file, i) =>
                     compressAndUpload(file.buffer, 'room-images', folderPath, `room_image_${i}.webp`, 1024)
                 )
             );
-        }
-
-        // ================= DOCUMENT UPLOADS =================
-        if (req.files?.ownershipProof) {
-            ownershipUrl = await compressAndUpload(req.files.ownershipProof[0].buffer, 'documents', folderPath, 'ownership_proof.webp', 1024);
-        }
-        if (req.files?.rentalAgreement) {
-            rentalAgreementUrl = await compressAndUpload(req.files.rentalAgreement[0].buffer, 'documents', folderPath, 'rental_agreement.webp', 1024);
-        }
-        if (req.files?.electricityBill) {
-            electricityBillUrl = await compressAndUpload(req.files.electricityBill[0].buffer, 'documents', folderPath, 'electricity_bill.webp', 1024);
         }
 
         // ================= GEOLOCATION =================
@@ -81,22 +66,23 @@ exports.createTenant = async (req, res) => {
             id: listingId,
             tenant_id: tenantIdStr || null,
             title: data.title,
-            email: data.email, // Reusing email from body as old model required it
+            email: data.email,
             country: data.country,
             city: data.city,
             state: data.state,
             address1: data.address1,
             address2: data.address2,
-            postal_code: data.zipCode || '00000', // Mocking if missing
+            postal_code: data.postalCode || data.zipCode || '00000',
             lat: lat,
             lng: lng,
             cold_rent: parseFloat(data.coldRent) || 0,
             warm_rent: parseFloat(data.warmRent) || 0,
             persons_sharing: parseInt(data.personsSharing) || 0,
-            rental_date: data.availabilityDate || data.rentalDate || new Date().toISOString(),
             parking: data.parking === 'true' || data.parking === true,
             rules: data.rules,
+            rental_date: data.rentalDate || null,
             status: 'Pending',
+            property_images: propertyImagesUrls,
         };
 
         const { error: insertError } = await supabase
@@ -123,23 +109,44 @@ exports.getAllTenants = async (req, res) => {
         if (error) throw new Error(error.message);
 
         // Convert Postgres fields to camelCase to prevent massive React rewrites if possible
-        const mappedListings = listings.map(l => ({
-            _id: l.id,
-            title: l.title,
-            email: l.email,
-            address1: l.address1,
-            address2: l.address2,
-            city: l.city,
-            state: l.state,
-            country: l.country,
-            location: { coordinates: [l.lng, l.lat] },
-            coldRent: l.cold_rent,
-            warmRent: l.warm_rent,
-            personsSharing: l.persons_sharing,
-            images: (l.property_images || []).map(toPublicUrl).filter(Boolean),
-            status: l.status,
-            tenantId: l.tenant_id,
-            createdAt: l.created_at
+        const mappedListings = await Promise.all(listings.map(async (l) => {
+            // Check verification from property_verification_requests
+            const { data: pvr } = await supabase
+                .from('property_verification_requests')
+                .select('id')
+                .eq('property_id', l.id)
+                .eq('verification_status', 'completed')
+                .limit(1);
+
+            // Check verification from agent_property_documents
+            const { data: apd } = await supabase
+                .from('agent_property_documents')
+                .select('id')
+                .eq('listing_id', l.id)
+                .eq('verification_status', 'approved')
+                .limit(1);
+
+            const isVerified = (pvr && pvr.length > 0) || (apd && apd.length > 0);
+
+            return {
+                _id: l.id,
+                title: l.title,
+                email: l.email,
+                address1: l.address1,
+                address2: l.address2,
+                city: l.city,
+                state: l.state,
+                country: l.country,
+                location: { coordinates: [l.lng, l.lat] },
+                coldRent: l.cold_rent,
+                warmRent: l.warm_rent,
+                personsSharing: l.persons_sharing,
+                images: l.property_images || [],
+                status: l.status,
+                tenantId: l.tenant_id,
+                createdAt: l.created_at,
+                isVerified
+            };
         }));
 
         res.json(mappedListings);
@@ -160,14 +167,22 @@ exports.getTenantById = async (req, res) => {
         if (error || !l) return res.status(404).json({ message: 'Listing not found' });
 
         // Check if ANY agent has successfully verified this property
-        const { data: verifications } = await supabase
+        const { data: agentVerif } = await supabase
             .from('agent_property_documents')
             .select('verification_status')
             .eq('listing_id', id)
             .eq('verification_status', 'approved')
             .limit(1);
 
-        const isVerified = verifications && verifications.length > 0;
+        // Also check property_verification_requests
+        const { data: propVerif } = await supabase
+            .from('property_verification_requests')
+            .select('verification_status')
+            .eq('property_id', id)
+            .eq('verification_status', 'completed')
+            .limit(1);
+
+        const isVerified = (agentVerif && agentVerif.length > 0) || (propVerif && propVerif.length > 0);
 
         const mappedListing = {
             _id: l.id,
@@ -182,9 +197,10 @@ exports.getTenantById = async (req, res) => {
             coldRent: l.cold_rent,
             warmRent: l.warm_rent,
             personsSharing: l.persons_sharing,
-            images: (l.property_images || []).map(toPublicUrl).filter(Boolean),
+            images: l.property_images || [],
             status: l.status,
             tenantId: l.tenant_id,
+            createdAt: l.created_at,
             isVerified
         };
 
